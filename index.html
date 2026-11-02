@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>音频格式转换 - MP3 / M4A / FLAC / OGG / WAV</title>
+<meta name="description" content="在浏览器里把音频转换成 MP3、M4A、FLAC、OGG 或 WAV,文件不会上传到服务器。">
+<style>
+:root{--bg:#ECEEF1;--ink:#15171C;--mut:#5B6370;--line:#C5CBD4;--red:#E5322D;--card:#fff;
+--font:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.7;-webkit-font-smoothing:antialiased}
+main{max-width:760px;margin:0 auto;padding:56px 20px 72px}
+h1{font-size:clamp(36px,8vw,60px);font-weight:900;letter-spacing:-.02em;line-height:1.1}
+.sub{color:var(--mut);margin-top:10px;font-size:17px}
+#deco{display:block;width:100%;height:48px;margin:28px 0 36px}
+.opts{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-end;margin-bottom:20px}
+fieldset{border:0}
+legend,.lab{font-size:14px;color:var(--mut);margin-bottom:6px;display:block}
+.seg{display:flex}
+.seg label{position:relative}
+.seg input{position:absolute;opacity:0;inset:0}
+.seg span{display:block;padding:10px 18px;border:1.5px solid var(--ink);font-weight:800;cursor:pointer;background:var(--card)}
+.seg label:first-child span{border-radius:6px 0 0 6px}
+.seg label:last-child span{border-radius:0 6px 6px 0}
+.seg label+label span{border-left:0}
+.seg input:checked+span{background:var(--ink);color:#fff}
+.seg input:focus-visible+span,select:focus-visible,.drop:focus-within{outline:3px solid var(--red);outline-offset:2px}
+select{font:inherit;font-weight:700;padding:10px 14px;border:1.5px solid var(--ink);border-radius:6px;background:var(--card);color:var(--ink)}
+.drop{display:block;text-align:center;padding:56px 20px;border:2px dashed var(--line);border-radius:10px;background:var(--card);cursor:pointer;position:relative}
+.drop:hover,.drop.on{border-color:var(--red)}
+.drop input{position:absolute;opacity:0;inset:0;width:100%;height:100%;cursor:pointer}
+.drop strong{display:block;font-size:22px;font-weight:800}
+.drop span{color:var(--mut);font-size:15px}
+#engine{margin-top:12px;padding:12px 16px;background:var(--card);border:1px solid var(--line);border-radius:10px;font-size:14px;color:var(--mut)}
+#engine.bad{color:var(--red);font-weight:700}
+#engine .bar{margin-top:8px}
+#zipbar{margin-top:16px}
+#zipbtn{font:inherit;font-weight:800;padding:12px 22px;border:0;border-radius:6px;background:var(--ink);color:#fff;cursor:pointer}
+#zipbtn:hover{background:var(--red)}
+#zipbtn:disabled{opacity:.6;cursor:wait}
+#zipbtn:focus-visible{outline:3px solid var(--red);outline-offset:2px}
+#list{list-style:none}
+#list li{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-top:12px}
+.top{display:flex;justify-content:space-between;gap:12px;font-size:15px}
+.name{font-weight:800;overflow-wrap:anywhere}
+.size{color:var(--mut);white-space:nowrap}
+canvas{display:block;width:100%;height:48px;margin:10px 0 0}
+.bar{height:4px;background:var(--bg);border-radius:2px;overflow:hidden;margin-top:10px}
+.bar i{display:block;height:100%;width:0;background:var(--red);transition:width .2s}
+.st{margin-top:10px;font-size:14px;color:var(--mut);min-height:24px}
+.err .st{color:var(--red);font-weight:700}
+.dl{display:inline-block;padding:8px 18px;background:var(--red);color:#fff;font-weight:800;text-decoration:none;border-radius:6px}
+.dl:hover{background:var(--ink)}
+.dl:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.note{margin-top:40px;padding-top:20px;border-top:1px solid var(--line);color:var(--mut);font-size:14px}
+.note p+p{margin-top:6px}
+@media (max-width:420px){.seg span{padding:10px 12px;font-size:14px}}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+</style>
+</head>
+<body>
+<main>
+  <h1>音频格式转换</h1>
+  <p class="sub">在你自己的浏览器里完成转换,文件不会上传到任何服务器。</p>
+  <svg id="deco" viewBox="0 0 600 48" preserveAspectRatio="none" aria-hidden="true"></svg>
+
+  <div class="opts">
+    <fieldset>
+      <legend>输出格式</legend>
+      <div class="seg">
+        <label><input type="radio" name="fmt" value="mp3" checked><span>MP3</span></label>
+        <label><input type="radio" name="fmt" value="m4a"><span>M4A</span></label>
+        <label><input type="radio" name="fmt" value="flac"><span>FLAC</span></label>
+        <label><input type="radio" name="fmt" value="ogg"><span>OGG</span></label>
+        <label><input type="radio" name="fmt" value="wav"><span>WAV</span></label>
+      </div>
+    </fieldset>
+    <div id="qwrap">
+      <label class="lab" for="kbps">音质</label>
+      <select id="kbps">
+        <option value="128">128 kbps 体积小</option>
+        <option value="192" selected>192 kbps 均衡</option>
+        <option value="256">256 kbps 较高</option>
+        <option value="320">320 kbps 最高</option>
+      </select>
+    </div>
+  </div>
+
+  <label class="drop" id="drop">
+    <input type="file" id="f" accept="audio/*,video/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.wma,.ape,.opus,.aiff,.mp4,.mkv,.webm" multiple>
+    <strong>把音频文件拖到这里</strong>
+    <span>或点击选择文件,可一次选多个</span>
+  </label>
+
+  <div id="engine" hidden></div>
+  <div id="zipbar" hidden><button id="zipbtn" type="button"></button></div>
+  <ul id="list" aria-live="polite"></ul>
+
+  <div class="note">
+    <p>可转换:常见音频格式几乎都行(MP3、WAV、OGG、M4A、AAC、FLAC、WMA、APE 等),也可以从 MP4、MKV 等视频里提取音频。</p>
+    <p>FLAC 和 WAV 是无损格式,体积较大,不需要选音质。MP3、M4A、OGG 是有损格式,可选码率。</p>
+    <p>首次转换需要下载约 32 MB 的转换引擎,之后浏览器会缓存。不支持带加密保护的平台专有格式。</p>
+    <p>建议单个文件不超过 200 MB,大文件会占用较多内存。请只转换你有权处理的音频。</p>
+  </div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const list = $('#list'), fileIn = $('#f'), drop = $('#drop'), eng = $('#engine');
+const FMT = {
+  mp3:  { mime: 'audio/mpeg', args: k => ['-c:a', 'libmp3lame', '-b:a', k + 'k'] },
+  m4a:  { mime: 'audio/mp4',  args: k => ['-c:a', 'aac', '-b:a', k + 'k'] },
+  ogg:  { mime: 'audio/ogg',  args: k => ['-c:a', 'libvorbis', '-b:a', k + 'k'] },
+  flac: { mime: 'audio/flac', args: () => ['-c:a', 'flac'] },
+  wav:  { mime: 'audio/wav',  args: () => ['-c:a', 'pcm_s16le'] }
+};
+const BASES = ['https://cdn.jsdelivr.net/npm/', 'https://fastly.jsdelivr.net/npm/', 'https://unpkg.com/'];
+const P_FF = '@ffmpeg/ffmpeg@0.12.10/dist/umd/', P_CORE = '@ffmpeg/core@0.12.6/dist/umd/';
+const WASM_SIZE = 32129114;
+let queue = Promise.resolve(), ffP = null, onProgress = null;
+
+/* 顶部装饰波形 */
+(function(){
+  let s = '';
+  for (let i = 0; i < 60; i++) {
+    const h = 6 + Math.abs(Math.sin(i * .45) * Math.sin(i * .13 + 1)) * 40;
+    s += `<rect x="${i*10+1}" y="${(48-h)/2}" width="6" height="${h}" fill="${i < 22 ? '#E5322D' : '#B7BDC7'}"/>`;
+  }
+  $('#deco').innerHTML = s;
+})();
+
+/* ---------- 转换引擎加载 ---------- */
+function setEngine(text, p, bad){
+  eng.hidden = false;
+  eng.className = bad ? 'bad' : '';
+  eng.innerHTML = '<div></div>' + (p == null ? '' : '<div class="bar"><i></i></div>');
+  eng.firstChild.textContent = text;
+  if (p != null) eng.querySelector('i').style.width = Math.round(p * 100) + '%';
+}
+function loadScript(src){
+  return new Promise((ok, no) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = ok;
+    s.onerror = () => { s.remove(); no(new Error('load failed')); };
+    document.head.appendChild(s);
+  });
+}
+async function scriptFromAny(path){
+  for (const b of BASES) { try { await loadScript(b + path); return; } catch (e) {} }
+  throw new Error('script');
+}
+async function blobFromAny(path, mime, onp){
+  for (const b of BASES) {
+    try {
+      const r = await fetch(b + path);
+      if (!r.ok) throw new Error('http');
+      const rd = r.body.getReader(), parts = []; let got = 0;
+      for (;;) {
+        const x = await rd.read();
+        if (x.done) break;
+        parts.push(x.value); got += x.value.length;
+        if (onp) onp(got);
+      }
+      return URL.createObjectURL(new Blob(parts, { type: mime }));
+    } catch (e) {}
+  }
+  throw new Error('blob');
+}
+function getFF(){
+  if (!ffP) {
+    ffP = (async () => {
+      setEngine('正在加载转换引擎(首次约 32 MB)…', 0);
+      if (!window.FFmpegWASM) await scriptFromAny(P_FF + 'ffmpeg.js');
+      const ff = new FFmpegWASM.FFmpeg();
+      ff.on('progress', e => {
+        if (onProgress && isFinite(e.progress)) onProgress(Math.max(0, Math.min(1, e.progress)));
+      });
+      const classWorkerURL = await blobFromAny(P_FF + '814.ffmpeg.js', 'text/javascript');
+      const coreURL = await blobFromAny(P_CORE + 'ffmpeg-core.js', 'text/javascript');
+      const wasmURL = await blobFromAny(P_CORE + 'ffmpeg-core.wasm', 'application/wasm',
+        g => setEngine('正在加载转换引擎(首次约 32 MB)…', Math.min(1, g / WASM_SIZE)));
+      await ff.load({ classWorkerURL, coreURL, wasmURL });
+      eng.hidden = true;
+      return ff;
+    })().catch(e => {
+      ffP = null;
+      setEngine('转换引擎加载失败,请检查网络后重新添加文件重试。', null, true);
+      throw new Error('转换引擎加载失败,请检查网络后重试');
+    });
+  }
+  return ffP;
+}
+
+/* ---------- 转换 ---------- */
+async function convert(file, type, kbps, onp){
+  const ff = await getFF();
+  const m = /\.([a-z0-9]{1,5})$/i.exec(file.name);
+  const inn = 'input' + (m ? '.' + m[1].toLowerCase() : ''), out = 'output.' + type;
+  await ff.writeFile(inn, new Uint8Array(await file.arrayBuffer()));
+  onProgress = onp;
+  try {
+    let code;
+    try {
+      code = await ff.exec(['-i', inn, '-vn', ...FMT[type].args(kbps), '-y', out]);
+    } catch (e) {
+      try { ff.terminate(); } catch (x) {}
+      ffP = null;
+      throw new Error('转换中断,可能是文件太大导致内存不足');
+    }
+    if (code !== 0) throw new Error('无法转换这个文件:格式不支持,或文件已加密');
+    const data = await ff.readFile(out);
+    return new Blob([data], { type: FMT[type].mime });
+  } finally {
+    onProgress = null;
+    if (ffP) { try { await ff.deleteFile(inn); } catch (e) {} try { await ff.deleteFile(out); } catch (e) {} }
+  }
+}
+
+/* 波形:尽力而为,浏览器解不了就不显示 */
+async function tryWave(cv, file){
+  if (file.size > 40 * 1048576) return;
+  try {
+    const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const ctx = new Ctx(1, 1, 44100);
+    const ab = await new Promise((res, rej) => {
+      const p = ctx.decodeAudioData(file.__buf, res, rej);
+      if (p && p.catch) p.catch(rej);
+    });
+    const d = ab.getChannelData(0), W = cv.width = 600, H = cv.height = 48, g = cv.getContext('2d');
+    const n = 100, bs = Math.floor(d.length / n);
+    g.fillStyle = '#E5322D';
+    for (let i = 0; i < n; i++) {
+      let m = 0;
+      for (let j = i * bs; j < (i + 1) * bs; j += Math.max(1, bs >> 6)) m = Math.max(m, Math.abs(d[j] || 0));
+      const h = Math.max(2, m * H);
+      g.fillRect(i * (W / n) + 1, (H - h) / 2, W / n - 2, h);
+    }
+    cv.hidden = false;
+  } catch (e) { cv.hidden = true; }
+}
+
+/* ---------- 打包下载(ZIP,不压缩,音频本身已压缩) ---------- */
+const results = [];
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u){ let c = ~0; for (let i = 0; i < u.length; i++) c = CRC[(c ^ u[i]) & 255] ^ (c >>> 8); return ~c >>> 0; }
+async function makeZip(items){
+  const enc = new TextEncoder(), parts = [], cen = []; let off = 0;
+  const d = new Date(), time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+  const date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  for (const it of items) {
+    const name = enc.encode(it.name), data = new Uint8Array(await it.blob.arrayBuffer()), crc = crc32(data);
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true);
+    lh.setUint16(8, 0, true); lh.setUint16(10, time, true); lh.setUint16(12, date, true);
+    lh.setUint32(14, crc, true); lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true);
+    lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
+    parts.push(new Uint8Array(lh.buffer), name, data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true);
+    ch.setUint16(10, 0, true); ch.setUint16(12, time, true); ch.setUint16(14, date, true);
+    ch.setUint32(16, crc, true); ch.setUint32(20, data.length, true); ch.setUint32(24, data.length, true);
+    ch.setUint16(28, name.length, true); ch.setUint32(42, off, true);
+    cen.push(new Uint8Array(ch.buffer), name);
+    off += 30 + name.length + data.length;
+  }
+  const cdSize = cen.reduce((a, b) => a + b.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, items.length, true); end.setUint16(10, items.length, true);
+  end.setUint32(12, cdSize, true); end.setUint32(16, off, true);
+  return new Blob([...parts, ...cen, new Uint8Array(end.buffer)], { type: 'application/zip' });
+}
+function uniqueNames(items){
+  const seen = {};
+  return items.map(it => {
+    let n = it.name, k = 1;
+    while (seen[n.toLowerCase()]) { k++; n = it.name.replace(/(\.[^.]*)?$/, ' (' + k + ')$1'); }
+    seen[n.toLowerCase()] = 1;
+    return { name: n, blob: it.blob };
+  });
+}
+function refreshZip(){
+  $('#zipbar').hidden = results.length < 2;
+  $('#zipbtn').textContent = '全部打包下载(已完成 ' + results.length + ' 个)';
+}
+$('#zipbtn').addEventListener('click', async () => {
+  const btn = $('#zipbtn'); btn.disabled = true; btn.textContent = '打包中…';
+  try {
+    const url = URL.createObjectURL(await makeZip(uniqueNames(results)));
+    const a = document.createElement('a'); a.href = url; a.download = '音频转换.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } finally { btn.disabled = false; refreshZip(); }
+});
+/* end zip */
+
+const fmtSize = b => b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.ceil(b / 1024) + ' KB';
+
+async function handle(file, li, type, kbps){
+  const st = li.querySelector('.st'), bar = li.querySelector('.bar i');
+  try {
+    st.textContent = '转换中…';
+    const blob = await convert(file, type, kbps, p => { bar.style.width = Math.round(p * 100) + '%'; });
+    bar.style.width = '100%';
+    const a = document.createElement('a');
+    a.className = 'dl';
+    a.href = URL.createObjectURL(blob);
+    a.download = file.name.replace(/\.[^.]+$/, '') + '.' + type;
+    results.push({ name: a.download, blob }); refreshZip();
+    a.textContent = '下载 ' + type.toUpperCase() + '(' + fmtSize(blob.size) + ')';
+    st.replaceChildren(a);
+    if (file.size <= 40 * 1048576) {
+      file.__buf = await file.arrayBuffer();
+      await tryWave(li.querySelector('canvas'), file);
+      file.__buf = null;
+    }
+  } catch (e) {
+    li.classList.add('err');
+    st.textContent = e.message || '转换失败';
+  }
+}
+
+function add(files){
+  const type = document.querySelector('input[name=fmt]:checked').value, kbps = +$('#kbps').value;
+  [...files].forEach(file => {
+    const li = document.createElement('li');
+    li.innerHTML = '<div class="top"><span class="name"></span><span class="size"></span></div><canvas hidden></canvas><div class="bar"><i></i></div><div class="st">排队中…</div>';
+    li.querySelector('.name').textContent = file.name;
+    li.querySelector('.size').textContent = fmtSize(file.size);
+    list.appendChild(li);
+    queue = queue.then(() => handle(file, li, type, kbps));
+  });
+}
+
+document.querySelectorAll('input[name=fmt]').forEach(r =>
+  r.addEventListener('change', () => { $('#qwrap').hidden = r.checked && (r.value === 'wav' || r.value === 'flac'); }));
+['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('on'); }));
+['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('on'); }));
+drop.addEventListener('drop', e => add(e.dataTransfer.files));
+fileIn.addEventListener('change', () => { add(fileIn.files); fileIn.value = ''; });
+['dragover', 'drop'].forEach(t => window.addEventListener(t, e => e.preventDefault()));
+</script>
+</body>
+</html>
